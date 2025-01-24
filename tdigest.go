@@ -54,6 +54,11 @@ func New(options ...tdigestOption) (*TDigest, error) {
 	return tdigest, nil
 }
 
+func (t *TDigest) Reset() {
+	t.count = 0
+	t.summary.Reset()
+}
+
 // Creates a tdigest instance without allocating a summary.
 func newWithoutSummary(options ...tdigestOption) (*TDigest, error) {
 	tdigest := &TDigest{
@@ -241,16 +246,26 @@ func (t *TDigest) Compress() (err error) {
 		return nil
 	}
 
-	oldTree := t.summary
-	t.summary = newSummary(estimateCapacity(t.compression))
-	t.count = 0
+	oldMeans, oldCounts := t.summary.GetDataCopy()
+	shuffle(oldMeans, oldCounts, t.rng)
+	return t.resetApplyTransaction(oldMeans, oldCounts)
+}
 
-	oldTree.shuffle(t.rng)
-	oldTree.ForEach(func(mean float64, count uint64) bool {
-		err = t.AddWeighted(mean, count)
-		return err == nil
-	})
-	return err
+func (t *TDigest) resetApplyTransaction(oldMeans []float64, oldCounts []uint64) (err error) {
+	t.Reset()
+	revert := func() {
+		t.summary.means = oldMeans
+		t.summary.counts = oldCounts
+		t.count = t.summary.GetTotalCount()
+	}
+	for idx, m := range oldMeans {
+		err = t.AddWeighted(m, oldCounts[idx])
+		if err != nil {
+			revert()
+			return err
+		}
+	}
+	return nil
 }
 
 // Merge joins a given digest into itself.

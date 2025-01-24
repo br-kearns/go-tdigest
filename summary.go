@@ -19,6 +19,19 @@ func newSummary(initialCapacity int) *summary {
 	return s
 }
 
+func (s *summary) Reset() {
+	s.means = s.means[:0]
+	s.counts = s.counts[:0]
+}
+
+func (s *summary) GetDataCopy() ([]float64, []uint64) {
+	meansCopy := make([]float64, len(s.means))
+	countsCopy := make([]uint64, len(s.counts))
+	copy(meansCopy, s.means)
+	copy(countsCopy, s.counts)
+	return meansCopy, countsCopy
+}
+
 func (s *summary) Len() int {
 	return len(s.means)
 }
@@ -96,6 +109,14 @@ func (s *summary) Count(uncheckedIndex int) uint64 {
 	return s.counts[uncheckedIndex]
 }
 
+func (s *summary) GetTotalCount() uint64 {
+	var totalCount uint64
+	for _, count := range s.counts {
+		totalCount += count
+	}
+	return totalCount
+}
+
 // return the index of the last item which the sum of counts
 // of items before it is less than or equal to `sum`. -1 in
 // case no centroid satisfies the requirement.
@@ -164,15 +185,23 @@ func (s *summary) Clone() *summary {
 // Randomly shuffles summary contents, so they can be added to another summary
 // with being pathological. Renders summary invalid.
 func (s *summary) shuffle(rng RNG) {
-	for i := len(s.means) - 1; i > 1; i-- {
-		s.Swap(i, rng.Intn(i+1))
+	shuffle(s.means, s.counts, rng)
+}
+
+func shuffle(means []float64, counts []uint64, rng RNG) {
+	for i := len(means) - 1; i > 1; i-- {
+		Swap(means, counts, i, rng.Intn(i+1))
 	}
 }
 
 // for sort.Interface
 func (s *summary) Swap(i, j int) {
-	s.means[i], s.means[j] = s.means[j], s.means[i]
-	s.counts[i], s.counts[j] = s.counts[j], s.counts[i]
+	Swap(s.means, s.counts, i, j)
+}
+
+func Swap(means []float64, counts []uint64, i, j int) {
+	means[i], means[j] = means[j], means[i]
+	counts[i], counts[j] = counts[j], counts[i]
 }
 
 func (s *summary) Less(i, j int) bool {
