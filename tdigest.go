@@ -54,9 +54,16 @@ func New(options ...tdigestOption) (*TDigest, error) {
 	return tdigest, nil
 }
 
-func (t *TDigest) Reset() {
+func (t *TDigest) Reset(opts ...tdigestOption) (*TDigest, error) {
 	t.count = 0
 	t.summary.Reset()
+	for _, option := range opts {
+		err := option(t)
+		if err != nil {
+			return t, err
+		}
+	}
+	return t, nil
 }
 
 // Creates a tdigest instance without allocating a summary.
